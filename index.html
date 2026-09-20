@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>FelipinhoCell Estoque V4</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,Arial;background:#f3f6fa;color:#122033}
+header{background:linear-gradient(135deg,#07111f,#0868ba);color:#fff;padding:30px 17px 24px;border-radius:0 0 26px 26px}
+h1{margin:0;font-size:26px}header p{margin:5px 0 0;opacity:.8}
+main{max-width:850px;margin:auto;padding:14px}.box,.card{background:#fff;border-radius:18px;padding:14px;margin:11px 0;box-shadow:0 4px 18px #0001}
+textarea,input,button{font:inherit;width:100%;border-radius:12px;padding:12px}textarea,input{border:1px solid #dbe2ea;background:#fff}
+textarea{height:240px;font-size:16px}button{border:0;background:#1689ff;color:#fff;font-weight:800;margin-top:7px}.dark{background:#07111f}.green{background:#118b57}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.hint{font-size:12px;color:#6b7788;margin:7px 0}
+.preview{font-size:13px;line-height:1.55;background:#f5f8fb;border-radius:12px;padding:10px;margin-top:9px;display:none}
+.card .name{font-size:17px;font-weight:900}.meta{font-size:12px;color:#687386;margin-top:4px}.price{font-size:21px;font-weight:900;color:#13915a;margin-top:6px}
+.badge{display:inline-block;font-size:10px;font-weight:800;background:#eaf4ff;color:#076bc9;padding:4px 7px;border-radius:20px;margin:3px 3px 0 0}
+@media(max-width:520px){.row{grid-template-columns:1fr}}
+</style></head>
+<body>
+<header><h1>📱 FelipinhoCell V4</h1><p>Importe a lista e gere seus preços automaticamente</p></header>
+<main>
+<div class="box">
+<b>📋 COLE A LISTA DO FORNECEDOR AQUI</b>
+<p class="hint">No iPhone: toque dentro do campo abaixo, segure por um instante e escolha <b>Colar</b>.</p>
+<textarea id="raw" placeholder="TOQUE AQUI E COLE A LISTA COMPLETA DO FORNECEDOR"></textarea>
+<div class="row">
+<button onclick="analisar()">🔎 ANALISAR LISTA</button>
+<button class="green" onclick="confirmar()">✅ CONFIRMAR E ORGANIZAR</button>
+</div>
+<div id="preview" class="preview"></div>
+</div>
+
+<div class="box">
+<label><b>💰 Margem adicionada em cada aparelho</b><input id="margin" type="number" value="600"></label>
+<button class="dark" onclick="copiarTudo()">📲 COPIAR TABELA PARA WHATSAPP</button>
+</div>
+<input id="search" placeholder="🔎 Pesquisar iPhone..." oninput="render()">
+<div id="list"></div>
+</main>
+<script>
+let items=JSON.parse(localStorage.getItem("fc_v4")||"[]"), temp=[];
+const $=x=>document.getElementById(x);
+const brl=n=>Number(n).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+function num(s){s=s.replace(/[^\d.,]/g,"");if(s.includes(","))return parseFloat(s.replace(/\./g,"").replace(",","."));if(/\.\d{3}$/.test(s))return parseFloat(s.replace(".",""));return parseFloat(s)}
+function parse(){
+ let ls=$("raw").value.split(/\n/).map(x=>x.trim()).filter(Boolean),out=[],cur=null;
+ function push(){if(cur&&cur.cost){cur.colors=cur.colors.length?[...new Set(cur.colors)].join(", "):"Consultar";out.push(cur)}}
+ for(let l of ls){
+  let m=l.match(/iphone\s*(\d{1,2})\s*(pro\s*max|pro)?/i);
+  if(m){push();let gb=(l.match(/(\d{2,4})\s*GB/i)||[])[1];cur={name:("iPhone "+m[1]+" "+(m[2]||"")).replace(/\s+/g," ").trim(),storage:gb?gb+" GB":"Consultar",cost:0,colors:[],battery:"Consultar",usa:/americano|🇺🇸/i.test(l)};continue}
+  if(!cur)continue;
+  let gb=l.match(/(\d{2,4})\s*GB/i);if(gb&&cur.storage==="Consultar")cur.storage=gb[1]+" GB";
+  let p=l.match(/[💸💰💵]\s*([\d.,]+)/);if(p)cur.cost=num(p[1]);
+  let b=l.match(/(acima de\s*)?(\d{2,3})%/i);if(b)cur.battery=(b[1]?"Acima de ":"")+b[2]+"%";
+  if(/americano|🇺🇸/i.test(l))cur.usa=true;
+  let c=l.match(/(azul|azu\b|verde|branco|preto|gold|dourado|roxo|rosa|roza|lil[aá]s|natural|desert)/i);
+  if(c)cur.colors.push(c[1].replace(/roza/i,"Rosa").replace(/^azu$/i,"Azul"));
+ }push();return out;
+}
+function analisar(){
+ temp=parse();let p=$("preview");p.style.display="block";
+ if(!temp.length){p.innerHTML="⚠️ Não encontrei aparelhos. Confira se você colou a lista completa.";return}
+ p.innerHTML="<b>✅ "+temp.length+" opções encontradas:</b><br><br>"+temp.map(x=>`${x.name} • ${x.storage} • ${brl(x.cost)} ${x.usa?"🇺🇸":""} • 🔋 ${x.battery}`).join("<br>");
+}
+function confirmar(){temp=parse();if(!temp.length){analisar();return}items=temp.map((x,i)=>({...x,id:Date.now()+i,qty:1}));localStorage.setItem("fc_v4",JSON.stringify(items));render();alert("Lista organizada com sucesso!")}
+function render(){
+ let q=$("search").value.toLowerCase(),m=+$("margin").value||600;
+ $("list").innerHTML=items.filter(x=>JSON.stringify(x).toLowerCase().includes(q)).map(x=>`<div class="card"><div class="name">${x.name} • ${x.storage} ${x.usa?'<span class="badge">🇺🇸 Americano</span>':''}</div><span class="badge">🔋 ${x.battery}</span><div class="meta">🎨 ${x.colors}<br>Custo: ${brl(x.cost)} + ${brl(m)}</div><div class="price">Venda: ${brl(x.cost+m)}</div></div>`).join("");
+}
+function copiarTudo(){let m=+$("margin").value||600,t="📱 *OFERTAS FELIPINHOCELL* 📱\n\n";items.forEach(x=>t+=`📱 *${x.name} ${x.storage}*${x.usa?" 🇺🇸":""}\n🔋 ${x.battery}\n🎨 ${x.colors}\n💰 *${brl(x.cost+m)}*\n\n`);navigator.clipboard.writeText(t).then(()=>alert("Tabela copiada!")).catch(()=>prompt("Copie a tabela abaixo:",t))}
+$("margin").oninput=render;render();
+</script></body></html>
